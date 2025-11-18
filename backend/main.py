@@ -1,20 +1,27 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any, Dict
 import math
+from qiskit import QuantumCircuit
+from qiskit.quantum_info import Statevector
+from qiskit_aer import AerSimulator
 
 app = FastAPI(title="Quantum Dice API")
 
-# Qiskit imports - AerSimulator is in qiskit_aer package
-try:
-    from qiskit import QuantumCircuit
-    from qiskit.quantum_info import Statevector
-    from qiskit_aer import AerSimulator
-except Exception as e:
-    # Keep it import-safe so devs without qiskit can still start the server and see helpful error
-    QuantumCircuit = None
-    Statevector = None
-    AerSimulator = None
+# Enable CORS for your frontend
+origins = [
+    "http://localhost:5173",  # your Vite dev server
+    # "http://your-frontend-domain.com"  # add when deployed
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class BuildRequest(BaseModel):
     n: int
@@ -31,35 +38,41 @@ def root():
 
 @app.post("/build_circuit")
 def build_circuit(req: BuildRequest) -> Dict[str, Any]:
-    if QuantumCircuit is None:
-        return {"error": "Qiskit not installed. Run pip install -r requirements.txt in backend/.venv"}
     n = max(1, min(20, req.n))
     method = req.method.lower()
     num_qubits = max(1, math.ceil(math.log2(n)))
+
+    # Create a quantum circuit with Hadamards on all qubits
     qc = QuantumCircuit(num_qubits)
     for q in range(num_qubits):
         qc.h(q)
 
-    # try to get an SVG (matplotlib backend). If not available return text fallback.
+    # Draw as SVG (safe on server / macOS)
     try:
-        svg = qc.draw(output='mpl')._repr_svg_()
+        svg = qc.draw(output='svg')
     except Exception:
+        # Fallback to text representation
         try:
-            svg = qc.draw(output='text').single_string()
-            svg = "<pre>" + svg.replace("<", "&lt;") + "</pre>"
+            svg_text = qc.draw(output='text').single_string()
+            svg = "<pre>" + svg_text.replace("<", "&lt;") + "</pre>"
         except Exception:
             svg = "<div>Could not render circuit on server.</div>"
 
-    # theoretical distribution (uniform on 2^k), map to 0..n-1 for display (client will explain mapping)
+    # Theoretical uniform distribution over all states (2^num_qubits)
     total_states = 2 ** num_qubits
-    prob = 1/total_states
+    prob = 1 / total_states
     dist = {str(i): prob for i in range(total_states)}
-    return {"n": n, "method": method, "num_qubits": num_qubits, "svg": svg, "theoretical": dist}
+
+    return {
+        "n": n,
+        "method": method,
+        "num_qubits": num_qubits,
+        "svg": svg,
+        "theoretical": dist
+    }
 
 @app.post("/simulate")
 def simulate(req: SimRequest) -> Dict[str, Any]:
-    if QuantumCircuit is None or AerSimulator is None:
-        return {"error": "Qiskit and AerSimulator must be installed in the backend environment."}
     n = max(1, min(20, req.n))
     method = req.method.lower()
     shots = max(1, min(10000, req.shots))
@@ -94,8 +107,6 @@ def simulate(req: SimRequest) -> Dict[str, Any]:
 
 @app.post("/step_state")
 def step_state(req: BuildRequest) -> Dict[str, Any]:
-    if QuantumCircuit is None or Statevector is None:
-        return {"error": "Qiskit not available in backend environment."}
     n = max(1, min(20, req.n))
     num_qubits = max(1, math.ceil(math.log2(n)))
     qc = QuantumCircuit(num_qubits)
