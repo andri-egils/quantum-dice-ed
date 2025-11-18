@@ -11,8 +11,8 @@ app = FastAPI(title="Quantum Dice API")
 
 # Enable CORS for your frontend
 origins = [
-    "http://localhost:5173",  # your Vite dev server
-    # "http://your-frontend-domain.com"  # add when deployed
+    "http://localhost:5173", 
+    # "http://your-frontend-domain.com" 
 ]
 
 app.add_middleware(
@@ -25,7 +25,7 @@ app.add_middleware(
 
 class BuildRequest(BaseModel):
     n: int
-    method: str  # 'rejection' or 'exact'
+    method: str
 
 class SimRequest(BaseModel):
     n: int

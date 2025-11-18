@@ -1,22 +1,35 @@
-import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
+// frontend/src/components/Distribution.tsx
+import React from "react";
 
-export default function Distribution({ data }: { data: any }) {
-  const keys = Object.keys(data).filter((k) => k !== '_rejected').sort((a, b) => Number(a) - Number(b));
-  const arr = keys.map((k) => ({ name: k, value: Number(data[k]) }));
-  if (data._rejected) arr.push({ name: '_rejected', value: Number(data._rejected) });
+interface DistributionProps {
+  distribution: Record<string, number>;
+}
 
+const Distribution: React.FC<DistributionProps> = ({ distribution }) => {
   return (
-    <div style={{ width: '100%', height: 220 }}>
-      <ResponsiveContainer>
-        <BarChart data={arr}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" />
-          <YAxis />
-          <Tooltip />
-          <Bar dataKey="value" fill="#8884d8" />
-        </BarChart>
-      </ResponsiveContainer>
+    <div style={{ marginTop: "1rem" }}>
+      <h3>Theoretical Distribution</h3>
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+        {Object.entries(distribution).map(([key, val]) => (
+          <div
+            key={key}
+            style={{
+              padding: "0.5rem",
+              border: "1px solid #ccc",
+              borderRadius: "4px",
+              minWidth: "30px",
+              textAlign: "center",
+              background: "#f9f9f9",
+            }}
+          >
+            <strong>{key}</strong>
+            <br />
+            {val.toFixed(3)}
+          </div>
+        ))}
+      </div>
     </div>
   );
-}
+};
+
+export default Distribution;
