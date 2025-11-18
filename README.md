@@ -7,10 +7,9 @@ git clone https://github.com/andri-egils/quantum-dice-ed.git
 cd quantum-dice-ed
 ```
 
----
-# Setup and Run Backend
+# Backend
 
-## Create and Activate .venv Environment
+## Create and activate .venv environment
 ```bash
 cd backend
 python3 -m venv .venv
@@ -25,8 +24,8 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
----
-# Setup and Run Frontend
+
+# Frontend
 
 ## Create .env
 ```bash
@@ -34,12 +33,12 @@ cd frontend
 echo "VITE_API_BASE=http://localhost:8000" > frontend/.env
 ```
 
-## Install Dependencies
+## Install dependencies
 ```bash
 npm install
 ```
 
-## Run Frontend
+## Run
 ```bash
 npm run dev
 ```
