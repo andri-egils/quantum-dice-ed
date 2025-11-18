@@ -1,0 +1,13 @@
+# macOS system files
+.DS_Store
+
+# Python / Backend
+backend/.venv/
+backend/__pycache__/
+backend/*.pyc
+
+# Environment files
+*.env
+
+# VSCode / IDEs
+.vscode/
