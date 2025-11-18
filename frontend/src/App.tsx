@@ -1,84 +1,60 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import CircuitViewer from './components/CircuitViewer';
-import Distribution from './components/Distribution';
+import React, { useState } from "react";
+import DiceRollTab from "./tabs/DiceRollTab";
+import LearnTab from "./tabs/LearnTab";
+import StepByStepTab from "./tabs/StepByStepTab";
 
-function App() {
-  const [n, setN] = useState(6);
-  const [method, setMethod] = useState('rejection');
-  const [svg, setSvg] = useState<string | null>(null);
-  const [theoretical, setTheoretical] = useState<any>(null);
-  const [counts, setCounts] = useState<any>(null);
+export default function App() {
+  const [activeTab, setActiveTab] = useState("Dice Roll");
 
-  // Backend base URL
-  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
-
-  // Call /build_circuit
-  async function buildCircuit() {
-    try {
-      const res = await axios.post(API_BASE + '/build_circuit', { n: Number(n), method });
-      setSvg(res.data.svg);
-      setTheoretical(res.data.theoretical);
-      setCounts(null);
-    } catch (err) {
-      console.error(err);
-      alert("Error fetching circuit from backend");
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "Dice Roll":
+        return <DiceRollTab />;
+      case "Learn":
+        return <LearnTab />;
+      case "Step by Step":
+        return <StepByStepTab />;
+      default:
+        return null;
     }
-  }
-
-  // Call /simulate
-  async function runSimulation() {
-    try {
-      const res = await axios.post(API_BASE + '/simulate', { n: Number(n), method, shots: 1000 });
-      setCounts(res.data.counts_mapped);
-    } catch (err) {
-      console.error(err);
-      alert("Error running simulation");
-    }
-  }
+  };
 
   return (
-    <div style={{ padding: 20, maxWidth: 1000, margin: '0 auto', fontFamily: 'Inter, system-ui' }}>
-      <h1>Quantum Dice — Starter</h1>
-
-      <div style={{ marginTop: 12 }}>
-        <label>Choose N: </label>
-        <input
-          type="number"
-          min={1}
-          max={20}
-          value={n}
-          onChange={(e) => setN(Number(e.target.value))}
-        />
-        <select value={method} onChange={(e) => setMethod(e.target.value)} style={{ marginLeft: 8 }}>
-          <option value="rejection">Rejection Sampling</option>
-          <option value="exact">Exact (reject overflows)</option>
-        </select>
-        <button onClick={buildCircuit} style={{ marginLeft: 8 }}>
-          Build Circuit
-        </button>
-        <button onClick={runSimulation} style={{ marginLeft: 8 }}>
-          Run 1000 shots
-        </button>
+    <div style={{ display: "flex", height: "100vh", fontFamily: "Inter, system-ui" }}>
+      {/* Sidebar */}
+      <div
+        style={{
+          width: 200,
+          backgroundColor: "#1f2937",
+          color: "white",
+          display: "flex",
+          flexDirection: "column",
+          paddingTop: 20,
+        }}
+      >
+        <h2 style={{ textAlign: "center", marginBottom: 20 }}>Quantum Dice</h2>
+        {["Dice Roll", "Learn", "Step by Step"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: "12px 16px",
+              margin: "4px 8px",
+              backgroundColor: activeTab === tab ? "#374151" : "transparent",
+              border: "none",
+              color: "white",
+              cursor: "pointer",
+              textAlign: "left",
+              borderRadius: 4,
+            }}
+          >
+            {tab}
+          </button>
+        ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 20, marginTop: 20 }}>
-        <div style={{ flex: 1 }}>
-          <h3>Theoretical Distribution</h3>
-          {theoretical ? <Distribution data={theoretical} /> : <div>Click "Build Circuit"</div>}
-        </div>
-        <div style={{ flex: 1 }}>
-          <h3>Circuit</h3>
-          {svg ? <CircuitViewer svg={svg} /> : <div>Click "Build Circuit"</div>}
-        </div>
-      </div>
-
-      <div style={{ marginTop: 20 }}>
-        <h3>Simulated Results</h3>
-        {counts ? <Distribution data={counts} /> : <div>Run simulation to see results</div>}
-      </div>
+      {/* Main content */}
+      <div style={{ flex: 1, padding: 20, overflow: "auto" }}>{renderTabContent()}</div>
     </div>
   );
 }
-
-export default App;
