@@ -9,9 +9,7 @@ cd quantum-dice-ed
 
 ---
 
-# **2️⃣ Backend README.md**
-
-`backend/README.md`
+## 2. Run Backend**
 
 ```markdown
 # Quantum Dice Backend
