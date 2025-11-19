@@ -1,73 +1,104 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { CircuitViewer, Distribution } from "../components";
-
-interface BuildResponse {
-  n: number;
-  method: string;
-  num_qubits: number;
-  svg: string;
-  theoretical: Record<string, number>;
-}
 
 export default function DiceRollTab() {
-  const [n, setN] = useState<number>(6);
+  const [numSides, setNumSides] = useState<number>(6);
   const [method, setMethod] = useState<string>("rejection");
-  const [svg, setSvg] = useState<string | null>(null);
-  const [dist, setDist] = useState<Record<string, number>>({});
+  const [placeholderImage] = useState<string>("https://via.placeholder.com/150");
+  const [rollResult, setRollResult] = useState<number | null>(null);
 
-  const buildCircuit = async () => {
+  // Automatically fetch backend update when sides change
+  useEffect(() => {
+    const updateDiceSettings = async () => {
+      try {
+        await axios.post(`${import.meta.env.VITE_API_BASE}/update_dice_settings`, {
+          numSides,
+          method,
+        });
+      } catch (err) {
+        console.error("Failed to update settings", err);
+      }
+    };
+
+    updateDiceSettings();
+  }, [numSides, method]);
+
+  const rollDice = async () => {
     try {
-      const { data } = await axios.post<BuildResponse>(
-        `${import.meta.env.VITE_API_BASE}/build_circuit`,
-        { n, method }
+      const { data } = await axios.post(
+        `${import.meta.env.VITE_API_BASE}/roll_dice`,
+        { numSides, method }
       );
-
-      setSvg(data.svg);
-      setDist(data.theoretical);
+      setRollResult(data.result);
     } catch (err) {
-      console.error(err);
-      setSvg("<div>Failed to fetch circuit</div>");
-      setDist({});
+      console.error("Roll failed", err);
+      setRollResult(null);
     }
   };
 
   return (
-    <div style={{ padding: "1rem" }}>
-      <h2>Dice Roll</h2>
+    <div style={{ padding: "1rem", textAlign: "center" }}>
+      <h2>Dice Roller</h2>
 
+      {/* Placeholder Image */}
+      <img
+        src={placeholderImage}
+        alt="Dice placeholder"
+        style={{ display: "block", margin: "0 auto 1rem", width: "150px" }}
+      />
+
+      {/* Number of Sides */}
       <div style={{ marginBottom: "1rem" }}>
         <label>
-          N (number of sides):
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={n}
-            onChange={(e) => setN(parseInt(e.target.value))}
-            style={{ marginLeft: "0.5rem", width: "60px" }}
-          />
+          Number of Sides:
+          <select
+            value={numSides}
+            onChange={(e) => setNumSides(parseInt(e.target.value))}
+            style={{ marginLeft: "0.5rem", padding: "0.25rem" }}
+          >
+            {Array.from({ length: 19 }, (_, i) => i + 2).map((side) => (
+              <option key={side} value={side}>
+                {side}
+              </option>
+            ))}
+          </select>
         </label>
+      </div>
 
-        <label style={{ marginLeft: "1rem" }}>
+      {/* Method selection */}
+      <div style={{ marginBottom: "1rem" }}>
+        <label>
           Method:
           <select
             value={method}
             onChange={(e) => setMethod(e.target.value)}
-            style={{ marginLeft: "0.5rem" }}
+            style={{ marginLeft: "0.5rem", padding: "0.25rem" }}
           >
             <option value="rejection">Rejection Sampling</option>
             <option value="exact">Exact State</option>
           </select>
         </label>
-
-        <button onClick={buildCircuit} style={{ marginLeft: "1rem" }}>
-          Build Circuit
-        </button>
       </div>
 
-      {svg && <CircuitViewer svg={svg} />}
-      {Object.keys(dist).length > 0 && <Distribution distribution={dist} />}
+      {/* Roll Button */}
+      <button
+        onClick={rollDice}
+        style={{
+          padding: "0.5rem 1rem",
+          fontSize: "1rem",
+          display: "block",
+          margin: "0.5rem auto",
+        }}
+      >
+        Roll
+      </button>
+
+      {/* Show result */}
+      {rollResult !== null && (
+        <div style={{ marginTop: "1rem", fontSize: "1.5rem" }}>
+          🎲 Result: <strong>{rollResult}</strong>
+        </div>
+      )}
     </div>
   );
 }
