@@ -1,1 +1,1 @@
-from .requests import BuildRequest, SimRequest, RollRequest
+from .requests import BuildRequest, SimRequest, RollRequest, RollMultipleRequest

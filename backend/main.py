@@ -5,7 +5,7 @@ from config.cors import origins
 from api.build_circuit import router as build_router
 from api.simulate import router as simulate_router
 from api.step_state import router as step_state_router
-from api.roll_dice import router as roll_router
+from api.roll import router as roll_router
 
 app = FastAPI(title="Quantum Dice API")
 

@@ -5,21 +5,21 @@ import math
 from models import BuildRequest
 from utils import (
     num_qubits_for_n,
-    make_uniform_hadamard_circuit,
-    safe_svg_draw
+    safe_svg_draw,
+    build_quantum_circuit
 )
 
 router = APIRouter()
 
 @router.post("/build_circuit")
 def build_circuit(req: BuildRequest) -> Dict[str, Any]:
-    n = max(1, min(20, req.n))
-    num_qubits = num_qubits_for_n(n)
+    n = max(2, min(20, req.n))
     method = req.method.lower()
-
-    qc = make_uniform_hadamard_circuit(num_qubits)
+    num_qubits = num_qubits_for_n(n)
+    qc = build_quantum_circuit(n, method)
     svg = safe_svg_draw(qc)
 
+    # theoretical uniform distribution over all states
     total_states = 2 ** num_qubits
     prob = 1 / total_states
     dist = {str(i): prob for i in range(total_states)}

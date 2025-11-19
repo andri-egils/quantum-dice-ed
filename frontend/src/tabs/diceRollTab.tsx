@@ -1,102 +1,248 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { CircuitViewer, Distribution } from "../components";
+
+interface BuildResponse {
+  n: number;
+  method: string;
+  svg: string;
+  theoretical: Record<string, number>;
+}
+
+interface RollSingleResponse {
+  raw_value: number;
+  mapped_value: number | null;
+}
+
+interface RollMultipleResponse {
+  counts_raw: Record<string, number>;
+  counts_mapped: Record<string, number>;
+}
 
 export default function DiceRollTab() {
-  const [numSides, setNumSides] = useState<number>(6);
+  const [n, setN] = useState<number>(6);
   const [method, setMethod] = useState<string>("rejection");
-  const [placeholderImage] = useState<string>("https://via.placeholder.com/150");
-  const [rollResult, setRollResult] = useState<number | null>(null);
 
-  // Automatically fetch backend update when sides change
+  const [svg, setSvg] = useState<string | null>(null);
+  const [dist, setDist] = useState<Record<string, number>>({});
+
+  const [lastRollRaw, setLastRollRaw] = useState<number | null>(null);
+  const [lastRollMapped, setLastRollMapped] = useState<number | null>(null);
+
+  const [samples, setSamples] = useState<Record<string, number>>({}); // cumulative histogram
+
+  //
+  // --- Fetch circuit whenever n or method changes ---
+  //
   useEffect(() => {
-    const updateDiceSettings = async () => {
-      try {
-        await axios.post(`${import.meta.env.VITE_API_BASE}/update_dice_settings`, {
-          numSides,
-          method,
-        });
-      } catch (err) {
-        console.error("Failed to update settings", err);
-      }
-    };
+    buildCircuit();
+    setSamples({}); // reset histogram when parameters change
+  }, [n, method]);
 
-    updateDiceSettings();
-  }, [numSides, method]);
-
-  const rollDice = async () => {
+  const buildCircuit = async () => {
     try {
-      const { data } = await axios.post(
-        `${import.meta.env.VITE_API_BASE}/roll_dice`,
-        { numSides, method }
+      const { data } = await axios.post<BuildResponse>(
+        `${import.meta.env.VITE_API_BASE}/build_circuit`,
+        { n, method }
       );
-      setRollResult(data.result);
+      setSvg(data.svg);
+      setDist(data.theoretical);
     } catch (err) {
-      console.error("Roll failed", err);
-      setRollResult(null);
+      console.error(err);
+      setSvg("<div>Failed to load circuit</div>");
+      setDist({});
     }
   };
 
+  //
+  // --- Single roll ---
+  //
+  const rollSingle = async () => {
+    try {
+      const { data } = await axios.post<RollSingleResponse>(
+        `${import.meta.env.VITE_API_BASE}/roll`,
+        { n, method }
+      );
+
+      setLastRollRaw(data.raw_value);
+      setLastRollMapped(null);
+
+      // Update cumulative histogram
+      const key = String(data.raw_value);
+
+      setSamples((prev) => ({
+        ...prev,
+        [key]: (prev[key] ?? 0) + 1,
+      }));
+    } catch (err) {
+      console.error(err);
+      setLastRollMapped(null);
+      setLastRollRaw(null);
+    }
+  };
+
+  //
+  // --- Add 100 rolls ---
+  //
+  const add100Rolls = async () => {
+    try {
+      const { data } = await axios.post<RollMultipleResponse>(
+        `${import.meta.env.VITE_API_BASE}/roll_multiple`,
+        { n, method, shots: 100 }
+      );
+
+      // Merge new samples into cumulative histogram
+      setSamples((prev) => {
+        const updated = { ...prev };
+        Object.entries(data.counts_raw).forEach(([key, count]) => {
+          updated[key] = (updated[key] ?? 0) + count;
+        });
+        return updated;
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const resetHistogram = () => setSamples({});
+
+  //
+  // --------- RENDER ----------
+  //
   return (
-    <div style={{ padding: "1rem", textAlign: "center" }}>
-      <h2>Dice Roller</h2>
+    <div style={{ padding: "1rem" }}>
+      <h2 style={{ textAlign: "center" }}>Quantum Dice Roll</h2>
 
-      {/* Placeholder Image */}
-      <img
-        src={placeholderImage}
-        alt="Dice placeholder"
-        style={{ display: "block", margin: "0 auto 1rem", width: "150px" }}
-      />
-
-      {/* Number of Sides */}
-      <div style={{ marginBottom: "1rem" }}>
-        <label>
-          Number of Sides:
-          <select
-            value={numSides}
-            onChange={(e) => setNumSides(parseInt(e.target.value))}
-            style={{ marginLeft: "0.5rem", padding: "0.25rem" }}
-          >
-            {Array.from({ length: 19 }, (_, i) => i + 2).map((side) => (
-              <option key={side} value={side}>
-                {side}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {/* Method selection */}
-      <div style={{ marginBottom: "1rem" }}>
-        <label>
-          Method:
-          <select
-            value={method}
-            onChange={(e) => setMethod(e.target.value)}
-            style={{ marginLeft: "0.5rem", padding: "0.25rem" }}
-          >
-            <option value="rejection">Rejection Sampling</option>
-            <option value="exact">Exact State</option>
-          </select>
-        </label>
-      </div>
-
-      {/* Roll Button */}
-      <button
-        onClick={rollDice}
+      {/* --- TOP SECTION: LEFT/RIGHT SPLIT --- */}
+      <div
         style={{
-          padding: "0.5rem 1rem",
-          fontSize: "1rem",
-          display: "block",
-          margin: "0.5rem auto",
+          display: "flex",
+          gap: "2rem",
+          marginTop: "1rem",
         }}
       >
-        Roll
-      </button>
+        {/* ---------- LEFT COLUMN ---------- */}
+        <div style={{ flex: 1 }}>
+          {/* Row 1: dice image + single roll result */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              marginBottom: "1rem",
+              gap: "1rem",
+            }}
+          >
+            <img
+              src="/placeholder-dice.png"
+              alt="Dice"
+              style={{ width: "100px" }}
+            />
 
-      {/* Show result */}
-      {rollResult !== null && (
-        <div style={{ marginTop: "1rem", fontSize: "1.5rem" }}>
-          🎲 Result: <strong>{rollResult}</strong>
+            <div style={{ fontSize: "1.4rem" }}>
+              <div>🎲 Last Roll:</div>
+
+              {lastRollRaw !== null ? (
+                <div>
+                  Raw:
+                  <span
+                    style={{
+                      color: lastRollRaw >= n ? "red" : "black",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {lastRollRaw}
+                  </span>
+                </div>
+              ) : (
+                <div>No rolls yet</div>
+              )}
+
+            </div>
+          </div>
+
+          {/* Row 2: controls */}
+          <div style={{ marginBottom: "1rem" }}>
+            <div style={{ marginBottom: "0.5rem" }}>Number of sides:</div>
+            <select
+              value={n}
+              onChange={(e) => setN(parseInt(e.target.value))}
+              style={{ width: "100%", marginBottom: "1rem" }}
+            >
+              {Array.from({ length: 19 }, (_, i) => i + 2).map((value) => (
+                <option key={value} value={value}>
+                  {value}-sided
+                </option>
+              ))}
+            </select>
+
+            <div style={{ marginBottom: "0.5rem" }}>Method:</div>
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+              style={{ width: "100%" }}
+            >
+              <option value="rejection">Rejection Sampling</option>
+              <option value="exact">Exact State</option>
+            </select>
+          </div>
+
+          {/* Row 3: Single Roll button */}
+          <button
+            onClick={rollSingle}
+            style={{
+              padding: "0.6rem 1.2rem",
+              width: "100%",
+              cursor: "pointer",
+              fontSize: "1rem",
+            }}
+          >
+            Roll Once
+          </button>
+        </div>
+
+        {/* ---------- RIGHT COLUMN ---------- */}
+        <div style={{ flex: 1 }}>
+          <h3>Cumulative Histogram</h3>
+
+          <Distribution
+            distribution={samples}
+            theoretical={dist}
+            highlightInvalid={true}
+            n={n}
+          />
+
+          <button
+            onClick={add100Rolls}
+            style={{
+              padding: "0.6rem 1.2rem",
+              width: "100%",
+              marginTop: "1rem",
+              cursor: "pointer",
+            }}
+          >
+            Add 100 Rolls
+          </button>
+
+          <button
+            onClick={resetHistogram}
+            style={{
+              padding: "0.6rem 1.2rem",
+              width: "100%",
+              marginTop: "0.5rem",
+              cursor: "pointer",
+              backgroundColor: "#ddd",
+            }}
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+
+      {/* --- CIRCUIT VIEWER SECTION --- */}
+      {svg && (
+        <div style={{ marginTop: "2rem" }}>
+          <h3>Quantum Circuit</h3>
+          <CircuitViewer svg={svg} />
         </div>
       )}
     </div>
