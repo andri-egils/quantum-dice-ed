@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { CircuitViewer, Distribution } from "../components";
+import Dice3D from "../components/Dice3D";
 
 interface BuildResponse {
   n: number;
@@ -30,15 +31,11 @@ export default function DiceRollTab() {
   const [lastRollMapped, setLastRollMapped] = useState<number | null>(null);
 
   const [samples, setSamples] = useState<Record<string, number>>({}); // cumulative histogram
+  const [rolling, setRolling] = useState(false);
 
   //
   // --- Fetch circuit whenever n or method changes ---
   //
-  useEffect(() => {
-    buildCircuit();
-    setSamples({}); // reset histogram when parameters change
-  }, [n, method]);
-
   const buildCircuit = async () => {
     try {
       const { data } = await axios.post<BuildResponse>(
@@ -54,10 +51,19 @@ export default function DiceRollTab() {
     }
   };
 
+  useEffect(() => {
+    buildCircuit();
+    setSamples({}); // reset histogram when parameters change
+  }, [n, method]);
+
   //
   // --- Single roll ---
   //
   const rollSingle = async () => {
+    setRolling(true);
+    // simple fixed animation duration
+    setTimeout(() => setRolling(false), 1500);
+
     try {
       const { data } = await axios.post<RollSingleResponse>(
         `${import.meta.env.VITE_API_BASE}/roll`,
@@ -123,7 +129,7 @@ export default function DiceRollTab() {
       >
         {/* ---------- LEFT COLUMN ---------- */}
         <div style={{ flex: 1 }}>
-          {/* Row 1: dice image + single roll result */}
+          {/* Row 1: 3D dice + single roll result */}
           <div
             style={{
               display: "flex",
@@ -132,18 +138,23 @@ export default function DiceRollTab() {
               gap: "1rem",
             }}
           >
-            <img
-              src="/placeholder-dice.png"
-              alt="Dice"
-              style={{ width: "100px" }}
+            {/* 3D Dice display */}
+            <Dice3D
+              sides={n}
+              rolling={rolling}
+              label={
+                lastRollRaw === null
+                  ? `D${n}`
+                  : `Result: ${lastRollRaw}`
+              }
             />
 
+            {/* Last roll text */}
             <div style={{ fontSize: "1.4rem" }}>
               <div>🎲 Last Roll:</div>
-
               {lastRollRaw !== null ? (
                 <div>
-                  Raw:
+                  Raw:{" "}
                   <span
                     style={{
                       color: lastRollRaw >= n ? "red" : "black",
@@ -156,24 +167,38 @@ export default function DiceRollTab() {
               ) : (
                 <div>No rolls yet</div>
               )}
-
             </div>
           </div>
 
-          {/* Row 2: controls */}
+          {/* Row 2: Dice selection buttons and method */}
           <div style={{ marginBottom: "1rem" }}>
-            <div style={{ marginBottom: "0.5rem" }}>Number of sides:</div>
-            <select
-              value={n}
-              onChange={(e) => setN(parseInt(e.target.value))}
-              style={{ width: "100%", marginBottom: "1rem" }}
+            <div style={{ marginBottom: "0.5rem" }}>Choose your dice:</div>
+            <div
+              style={{
+                display: "flex",
+                gap: "0.5rem",
+                marginBottom: "1rem",
+                flexWrap: "wrap",
+              }}
             >
-              {Array.from({ length: 19 }, (_, i) => i + 2).map((value) => (
-                <option key={value} value={value}>
-                  {value}-sided
-                </option>
+              {[4, 6, 8, 12, 20].map((sides) => (
+                <button
+                  key={sides}
+                  onClick={() => setN(sides)}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    border:
+                      n === sides ? "2px solid #007bff" : "1px solid #ccc",
+                    background: n === sides ? "#e3f2fd" : "#fff",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    fontWeight: n === sides ? "bold" : "normal",
+                  }}
+                >
+                  {`D${sides}`}
+                </button>
               ))}
-            </select>
+            </div>
 
             <div style={{ marginBottom: "0.5rem" }}>Method:</div>
             <select
