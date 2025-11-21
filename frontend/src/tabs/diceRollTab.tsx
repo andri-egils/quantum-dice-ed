@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { CircuitViewer, Distribution } from "../components";
 import Dice3D from "../components/Dice3D";
+import { useTranslation } from "../i18n";
 
 interface BuildResponse {
   n: number;
@@ -21,6 +22,11 @@ interface RollMultipleResponse {
 }
 
 export default function DiceRollTab() {
+  const { t, lang } = useTranslation();
+
+  useEffect(() => {
+    console.debug("DiceRollTab language:", lang, "title->", t("dice.title"));
+  }, [lang, t]);
   const [n, setN] = useState<number>(6);
   const [method, setMethod] = useState<string>("rejection");
 
@@ -28,32 +34,46 @@ export default function DiceRollTab() {
   const [dist, setDist] = useState<Record<string, number>>({});
 
   const [lastRollRaw, setLastRollRaw] = useState<number | null>(null);
-  const [lastRollMapped, setLastRollMapped] = useState<number | null>(null);
+  const [pendingRollRaw, setPendingRollRaw] = useState<number | null>(null);
 
   const [samples, setSamples] = useState<Record<string, number>>({}); // cumulative histogram
   const [rolling, setRolling] = useState(false);
+  const [showResult, setShowResult] = useState(false);
 
   //
   // --- Fetch circuit whenever n or method changes ---
   //
-  const buildCircuit = async () => {
-    try {
-      const { data } = await axios.post<BuildResponse>(
-        `${import.meta.env.VITE_API_BASE}/build_circuit`,
-        { n, method }
-      );
-      setSvg(data.svg);
-      setDist(data.theoretical);
-    } catch (err) {
-      console.error(err);
-      setSvg("<div>Failed to load circuit</div>");
-      setDist({});
-    }
-  };
+  // buildCircuit inlined in the effect below
 
   useEffect(() => {
-    buildCircuit();
-    setSamples({}); // reset histogram when parameters change
+    let cancelled = false;
+
+    const doBuild = async () => {
+      try {
+        const { data } = await axios.post<BuildResponse>(
+          `${import.meta.env.VITE_API_BASE}/build_circuit`,
+          { n, method }
+        );
+        if (!cancelled) {
+          setSvg(data.svg);
+          setDist(data.theoretical);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setSvg("<div>Failed to load circuit</div>");
+          setDist({});
+        }
+      } finally {
+        if (!cancelled) setSamples({});
+      }
+    };
+
+    doBuild();
+
+    return () => {
+      cancelled = true;
+    };
   }, [n, method]);
 
   //
@@ -61,29 +81,32 @@ export default function DiceRollTab() {
   //
   const rollSingle = async () => {
     setRolling(true);
+    setShowResult(false);
     // simple fixed animation duration
-    setTimeout(() => setRolling(false), 1500);
+    setTimeout(() => {
+      setRolling(false);
+      setShowResult(true);
+      if (pendingRollRaw !== null) {
+        setLastRollRaw(pendingRollRaw);
+        // Update cumulative histogram
+        const key = String(pendingRollRaw);
+        setSamples((prev) => ({
+          ...prev,
+          [key]: (prev[key] ?? 0) + 1,
+        }));
+        setPendingRollRaw(null);
+      }
+    }, 1500);
 
     try {
       const { data } = await axios.post<RollSingleResponse>(
         `${import.meta.env.VITE_API_BASE}/roll`,
         { n, method }
       );
-
-      setLastRollRaw(data.raw_value);
-      setLastRollMapped(null);
-
-      // Update cumulative histogram
-      const key = String(data.raw_value);
-
-      setSamples((prev) => ({
-        ...prev,
-        [key]: (prev[key] ?? 0) + 1,
-      }));
+      setPendingRollRaw(data.raw_value);
     } catch (err) {
       console.error(err);
-      setLastRollMapped(null);
-      setLastRollRaw(null);
+      setPendingRollRaw(null);
     }
   };
 
@@ -115,21 +138,12 @@ export default function DiceRollTab() {
   //
   // --------- RENDER ----------
   //
-  return (
-    <div style={{ padding: "1rem" }}>
-      <h2 style={{ textAlign: "center" }}>Quantum Dice Roll</h2>
+    return (
+      <div>
+        <h2 style={{ textAlign: "center" }}>{t("dice.title")}</h2>
 
-      {/* --- TOP SECTION: LEFT/RIGHT SPLIT --- */}
-      <div
-        style={{
-          display: "flex",
-          gap: "2rem",
-          marginTop: "1rem",
-        }}
-      >
-        {/* ---------- LEFT COLUMN ---------- */}
-        <div style={{ flex: 1 }}>
-          {/* Row 1: 3D dice + single roll result */}
+        {/* --- Dice Roll Section --- */}
+        <div className="card">
           <div
             style={{
               display: "flex",
@@ -138,41 +152,15 @@ export default function DiceRollTab() {
               gap: "1rem",
             }}
           >
-            {/* 3D Dice display */}
             <Dice3D
               sides={n}
               rolling={rolling}
-              label={
-                lastRollRaw === null
-                  ? `D${n}`
-                  : `Result: ${lastRollRaw}`
-              }
+              label={showResult && lastRollRaw !== null ? `${t("dice.resultPrefix")} ${lastRollRaw}` : `D${n}`}
             />
-
-            {/* Last roll text */}
-            <div style={{ fontSize: "1.4rem" }}>
-              <div>🎲 Last Roll:</div>
-              {lastRollRaw !== null ? (
-                <div>
-                  Raw:{" "}
-                  <span
-                    style={{
-                      color: lastRollRaw >= n ? "red" : "black",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {lastRollRaw}
-                  </span>
-                </div>
-              ) : (
-                <div>No rolls yet</div>
-              )}
-            </div>
           </div>
 
-          {/* Row 2: Dice selection buttons and method */}
           <div style={{ marginBottom: "1rem" }}>
-            <div style={{ marginBottom: "0.5rem" }}>Choose your dice:</div>
+            <div style={{ marginBottom: "0.5rem" }}>{t("dice.choose")}</div>
             <div
               style={{
                 display: "flex",
@@ -188,8 +176,8 @@ export default function DiceRollTab() {
                   style={{
                     padding: "0.5rem 1rem",
                     border:
-                      n === sides ? "2px solid #007bff" : "1px solid #ccc",
-                    background: n === sides ? "#e3f2fd" : "#fff",
+                      n === sides ? "2px solid #3a4ca3" : "1px solid #ccc",
+                    background: n === sides ? "#eaf6ff" : "#fff",
                     borderRadius: "8px",
                     cursor: "pointer",
                     fontWeight: n === sides ? "bold" : "normal",
@@ -200,18 +188,17 @@ export default function DiceRollTab() {
               ))}
             </div>
 
-            <div style={{ marginBottom: "0.5rem" }}>Method:</div>
+            <div style={{ marginBottom: "0.5rem" }}>{t("dice.method")}</div>
             <select
               value={method}
               onChange={(e) => setMethod(e.target.value)}
               style={{ width: "100%" }}
             >
-              <option value="rejection">Rejection Sampling</option>
-              <option value="exact">Exact State</option>
+              <option value="rejection">{t("dice.method.rejection")}</option>
+              <option value="exact">{t("dice.method.exact")}</option>
             </select>
           </div>
 
-          {/* Row 3: Single Roll button */}
           <button
             onClick={rollSingle}
             style={{
@@ -219,15 +206,19 @@ export default function DiceRollTab() {
               width: "100%",
               cursor: "pointer",
               fontSize: "1rem",
+              background: "#3a4ca3",
+              color: "#fff",
+              borderRadius: "8px",
+              border: "none",
             }}
           >
-            Roll Once
+            {t("dice.rollOnce")}
           </button>
         </div>
 
-        {/* ---------- RIGHT COLUMN ---------- */}
-        <div style={{ flex: 1 }}>
-          <h3>Cumulative Histogram</h3>
+        {/* --- Histogram Section --- */}
+        <div className="card">
+          <h3>{t("histogram.title")}</h3>
 
           <Distribution
             distribution={samples}
@@ -236,6 +227,13 @@ export default function DiceRollTab() {
             n={n}
           />
 
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+            <div style={{ fontSize: "1rem", color: "#333" }}>{t("dice.lastRoll")}</div>
+            <div style={{ fontSize: "1rem", color: showResult && lastRollRaw !== null && lastRollRaw >= n ? "#d64545" : "#333", fontWeight: 700 }}>
+              {t("dice.raw")} {showResult && lastRollRaw !== null ? lastRollRaw : "-"}
+            </div>
+          </div>
+
           <button
             onClick={add100Rolls}
             style={{
@@ -243,9 +241,13 @@ export default function DiceRollTab() {
               width: "100%",
               marginTop: "1rem",
               cursor: "pointer",
+              borderRadius: "8px",
+              border: "none",
+              background: "#3a4ca3",
+              color: "#fff",
             }}
           >
-            Add 100 Rolls
+            {t("dice.add100")}
           </button>
 
           <button
@@ -255,21 +257,23 @@ export default function DiceRollTab() {
               width: "100%",
               marginTop: "0.5rem",
               cursor: "pointer",
-              backgroundColor: "#ddd",
+              borderRadius: "8px",
+              border: "none",
+              background: "#eaf6ff",
+              color: "#3a4ca3",
             }}
           >
-            Reset
+            {t("dice.reset")}
           </button>
         </div>
-      </div>
 
-      {/* --- CIRCUIT VIEWER SECTION --- */}
-      {svg && (
-        <div style={{ marginTop: "2rem" }}>
-          <h3>Quantum Circuit</h3>
-          <CircuitViewer svg={svg} />
-        </div>
-      )}
-    </div>
+        {/* --- Circuit Section --- */}
+        {svg && (
+          <div className="card">
+            <h3>{t("circuit.title")}</h3>
+            <CircuitViewer svg={svg} />
+          </div>
+        )}
+      </div>
   );
 }
