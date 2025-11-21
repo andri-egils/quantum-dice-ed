@@ -2,21 +2,27 @@ import math
 import random
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
+from qiskit.circuit.library import StatePreparation
+import numpy as np
 
 def num_qubits_for_n(n: int) -> int:
     return max(1, math.ceil(math.log2(n)))
 
 def build_quantum_circuit(n: int, method: str) -> QuantumCircuit:
+    num_qubits = num_qubits_for_n(n)
     if method == "rejection":
-        num_qubits = num_qubits_for_n(n)
         qc = QuantumCircuit(num_qubits, num_qubits)
         for q in range(num_qubits):
             qc.h(q)
         qc.measure(range(num_qubits), range(num_qubits))
         return qc
     elif method == "exact":
-        # TODO Implement exact probabilistic state
-        pass
+        amps = [1/np.sqrt(n)] * n + [0] * (2**num_qubits - n)
+        sp_gate = StatePreparation(amps)
+        qc = QuantumCircuit(num_qubits)
+        qc.append(sp_gate, qc.qubits)
+        deep_decomposed = qc.decompose(reps=10)
+        return deep_decomposed
     else:
         raise ValueError(f"Invalid method: {method}. Use 'rejection' or 'exact'.")
 
