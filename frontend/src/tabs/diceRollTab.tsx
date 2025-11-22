@@ -34,7 +34,6 @@ export default function DiceRollTab() {
   const [dist, setDist] = useState<Record<string, number>>({});
 
   const [lastRollRaw, setLastRollRaw] = useState<number | null>(null);
-  const [pendingRollRaw, setPendingRollRaw] = useState<number | null>(null);
 
   const [samples, setSamples] = useState<Record<string, number>>({}); // cumulative histogram
   const [rolling, setRolling] = useState(false);
@@ -82,31 +81,33 @@ export default function DiceRollTab() {
   const rollSingle = async () => {
     setRolling(true);
     setShowResult(false);
-    // simple fixed animation duration
-    setTimeout(() => {
-      setRolling(false);
-      setShowResult(true);
-      if (pendingRollRaw !== null) {
-        setLastRollRaw(pendingRollRaw);
-        // Update cumulative histogram
-        const key = String(pendingRollRaw);
+  // clear any previously pending value (no-op after refactor)
+
+    // start request and animation in parallel, reveal when BOTH complete
+    const req = axios.post<RollSingleResponse>(
+      `${import.meta.env.VITE_API_BASE}/roll`,
+      { n, method }
+    );
+
+    const animation = new Promise((resolve) => setTimeout(resolve, 1500));
+
+    try {
+      const [res] = await Promise.all([req, animation]);
+      const raw = res?.data?.raw_value ?? null;
+      // set the visible last roll and update histogram once
+      if (raw !== null) {
+        setLastRollRaw(raw);
+        const key = String(raw);
         setSamples((prev) => ({
           ...prev,
           [key]: (prev[key] ?? 0) + 1,
         }));
-        setPendingRollRaw(null);
       }
-    }, 1500);
-
-    try {
-      const { data } = await axios.post<RollSingleResponse>(
-        `${import.meta.env.VITE_API_BASE}/roll`,
-        { n, method }
-      );
-      setPendingRollRaw(data.raw_value);
     } catch (err) {
       console.error(err);
-      setPendingRollRaw(null);
+    } finally {
+      setRolling(false);
+      setShowResult(true);
     }
   };
 
