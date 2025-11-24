@@ -17,3 +17,7 @@ class SimRequest(BaseModel):
     n: int
     method: str
     shots: int = 1000
+
+class CircuitRequest(BaseModel):
+    n: int
+    method: str = "exact"

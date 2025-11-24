@@ -6,6 +6,7 @@ from api.build_circuit import router as build_router
 from api.simulate import router as simulate_router
 from api.step_state import router as step_state_router
 from api.roll import router as roll_router
+from api.circuit_visual import router as circuit_visual_router
 
 app = FastAPI(title="Quantum Dice API")
 
@@ -28,3 +29,4 @@ app.include_router(build_router)
 app.include_router(simulate_router)
 app.include_router(step_state_router)
 app.include_router(roll_router)
+app.include_router(circuit_visual_router)
