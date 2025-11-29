@@ -4,6 +4,14 @@ type Lang = "en" | "is";
 
 const translations: Record<Lang, Record<string, string>> = {
   en: {
+  "learn.card.rejection.title": "What is rejection sampling?",
+  "learn.card.rejection.body": "Rejection sampling is a technique to obtain uniform outcomes from a process that naturally produces non-uniform bitstrings. We generate raw measurements from the quantum circuit and discard (\"reject\") any results that fall outside the desired range. The accepted results are uniformly distributed over the target set (e.g., 1..N for a D N die).",
+  "learn.card.exact.title": "What is exact state?",
+  "learn.card.exact.body": "The \"exact state\" method prepares a quantum state that directly encodes the desired uniform distribution over the allowed outcomes. Instead of rejecting results, the circuit is engineered so that every measured outcome in the target set is equally probable. This often requires tailored amplitudes and controlled operations to shape the measurement distribution precisely.",
+  "learn.card.circuit.title": "How is the quantum circuit prepared?",
+  "learn.card.circuit.body": "The circuit begins by initializing qubits, then applies a sequence of gates (e.g., Hadamard, controlled rotations) to create superposition and interference patterns. For rejection sampling, the circuit generates raw bitstrings which are post-processed classically. For the exact state method, gate parameters are chosen to produce a uniform distribution over valid outcomes. Finally, the qubits are measured to obtain classical results.",
+  "learn.card.qr.title": "What is quantum randomness?",
+  "learn.card.qr.body": "Quantum randomness arises from fundamental indeterminacy in quantum mechanics. When a quantum system is measured, outcomes are drawn according to intrinsic probability amplitudes—there is no hidden classical state that predetermines the result. In contrast, classical randomness typically comes from complex, but ultimately deterministic processes (like pseudo-random algorithms or chaotic physical phenomena). Quantum randomness is irreducible at the theory level; classical randomness is often effective unpredictability.",
     "site.title": "Quantum Randomizer",
     "tab.dice": "Dice",
     "tab.coin": "Coin",
@@ -38,6 +46,14 @@ const translations: Record<Lang, Record<string, string>> = {
   "coin.tails": "Tails",
   },
   is: {
+  "learn.card.rejection.title": "Hvað Er Hafnaúrtak?",
+  "learn.card.rejection.body": "Hafnaúrtak er tækni til að fá jafna dreifingu úr ferli sem gefur upphaflega ójafnar bitaraðir. Við mælum hráar niðurstöður úr skammtahringrás og höfnum (\"höfnum\") þeim sem falla utan æskilegs bils. Þær niðurstöður sem haldið er eru jafndreifðar yfir marksett (t.d. 1..N fyrir D N tening).",
+  "learn.card.exact.title": "Hvað Er Nákvæm Staða?",
+  "learn.card.exact.body": "Aðferðin \"nákvæm staða\" undirbýr skammtastöðu sem kóðar beint æskilega jafna dreifingu yfir leyfð útkomu. Í stað þess að hafna niðurstöðum er hringrásin hönnuð þannig að hver mæld niðurstaða í marksettinu sé jafnlíkleg. Þetta krefst oft sérsniðinna styrkleika (amplitúda) og stýrðra aðgerða til að móta mælingadreifingu nákvæmlega.",
+  "learn.card.circuit.title": "Hvernig Er Skammtahringrásin Undirbúin?",
+  "learn.card.circuit.body": "Hringrásin byrjar á upphafsstillingu qubita og beitir síðan röð aðgerða (t.d. Hadamard, stýrðum snúningum) til að mynda ofurstöðu og truflunarmynstur. Fyrir hafnaúrtak skilar hringrásin hráum bitastrengjum sem eru unnir síðar í klassískri vinnslu. Fyrir nákvæma stöðu eru færibreytur aðgerðanna valdar þannig að útkoman verði jafndreifð yfir gildar niðurstöður. Að lokum eru qubitarnir mældir til að fá klassísk gildi.",
+  "learn.card.qr.title": "Hvað Er Skammta Slembni?",
+  "learn.card.qr.body": "Skammta slembni sprettur af grundvallar óákveðni í skammtafræði. Þegar skammta kerfi er mælt eru niðurstöður dregnar samkvæmt innbyggðum líkindastyrkleikum—engin falin klassísk staða ákveður útkomuna fyrirfram. Á móti kemur klassísk slembni oft frá flóknum en í grunninn afdeterminískum ferlum (eins og sýndarslembi reikniritum eða kaótískum fyrirbærum). Skammta slembni er óafturkræf á fræðilegu stigi; klassísk slembni er oft áhrifarík ófyrirsjáanleiki.",
     "site.title": "Skammtaslembigjafi",
     "tab.dice": "Teningur",
     "tab.coin": "Króna",
