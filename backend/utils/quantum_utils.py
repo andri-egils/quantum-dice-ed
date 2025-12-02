@@ -138,53 +138,44 @@ def compute_angles_recursive(amplitudes, prefix="", level=0):
 # ------------------------------------------------------------
 
 def apply_controlled_ry(qc, theta, qubits, target, prefix):
-    """
-    Apply a multi-controlled RY(theta) to 'target' qubit,
-    controlled on 'qubits' matching the given binary prefix.
-    """
-    # Mask control qubits:
-    # If prefix bit is '0', we flip that qubit with X before and after.
+    controls = qubits[:len(prefix)]
+    
+    # Only apply X mask where needed
     for i, bit in enumerate(prefix):
-        if bit == '0':
+        if bit == "0":
             qc.x(qubits[i])
 
-    # Apply multi-controlled RY
-    controls = qubits[:len(prefix)]
+    # Apply rotation
     if len(controls) == 0:
         qc.ry(theta, target)
     else:
         qc.mcry(theta, controls, target)
 
-    # Unmask
+    # Undo X mask
     for i, bit in enumerate(prefix):
-        if bit == '0':
+        if bit == "0":
             qc.x(qubits[i])
 
 
+
 def build_state_preparation_circuit(probs):
-    """
-    Main function:
-      - Normalize and compute amplitudes
-      - Pad to 2^n
-      - Recursively compute angles
-      - Construct the circuit with controlled RY rotations
-    """
     probs = normalize_probs(probs)
     amplitudes = np.sqrt(probs)
-
     padded_amps, n = pad_amplitudes(amplitudes)
-
     angles = compute_angles_recursive(padded_amps)
 
     qc = QuantumCircuit(n)
 
-    # Build circuit level by level
     for (level, prefix), theta in sorted(angles.items()):
-        depth = len(prefix)
-        target = depth  # the qubit at which the RY is applied
+        if abs(theta) < 1e-10:  # skip unnecessary rotations
+            continue
+
+        target = len(prefix)  # target qubit = current depth
         if target >= n:
             continue
 
-        apply_controlled_ry(qc, theta, list(range(n)), target, prefix)
+        # Only mask qubits in prefix if prefix bit is 0
+        controls = list(range(n))
+        apply_controlled_ry(qc, theta, controls, target, prefix)
 
     return qc

@@ -45,6 +45,22 @@ export default function QuantumVisual({
 
   const qubitLines = Array.from({ length: circuitData.num_qubits }, (_, i) => i);
 
+  const sortedIndices = Array.from({length: 2**circuitData.num_qubits}, (_, i) => i)
+  .sort((a, b) => {
+    const aBE = parseInt(idxToBigEndian(a, circuitData.num_qubits), 2);
+    const bBE = parseInt(idxToBigEndian(b, circuitData.num_qubits), 2);
+    return aBE - bBE;
+  });
+
+  function idxToBigEndian(idx: number, numQubits: number): string {
+  return idx
+    .toString(2)
+    .padStart(numQubits, "0") // little-endian
+    .split("")                  // array of bits
+    .reverse()                  // flip LSB↔MSB
+    .join("");                  // back to string
+}
+
   return (
     <div>
       {mode === "step-by-step" && (
@@ -125,14 +141,21 @@ export default function QuantumVisual({
               </tr>
             </thead>
             <tbody>
-              {circuitData.steps[currentStep].statevector.map(([re, im], idx) => (
-                <tr key={idx}>
-                  <td>{idx.toString(2).padStart(circuitData.num_qubits, "0")}</td>
-                  <td>{`${re.toFixed(3)} + ${im.toFixed(3)}i`}</td>
-                  <td>{circuitData.steps[currentStep].probabilities[idx].toFixed(3)}</td>
-                </tr>
-              ))}
+              {sortedIndices.map(idx => {
+                const [re, im] = circuitData.steps[currentStep].statevector[idx];
+                const stateStr = idxToBigEndian(idx, circuitData.num_qubits);
+                const prob = circuitData.steps[currentStep].probabilities[idx];
+                return (
+                  <tr key={idx}>
+                    <td>{stateStr}</td>
+                    <td>{`${re.toFixed(3)} + ${im.toFixed(3)}i`}</td>
+                    <td>{prob.toFixed(3)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
+
+
           </table>
         </div>
       )}

@@ -26,9 +26,37 @@ export default function StepByStepTab() {
       try {
         const { data } = await axios.post<BuildResponse>(
           `${import.meta.env.VITE_API_BASE}/circuit_visual`,
-          { n: 3, method: "exact" }
+          { n: 6, method: "exact" }
         );
-        setCircuitData(data); // important!
+
+        // ---- INSERT INITIAL STATE STEP ----
+        const numQubits = data.num_qubits;
+        const dim = 2 ** numQubits;
+
+        const initialStatevector: [number, number][] = Array.from({ length: dim }, (_, i) =>
+          i === 0 ? [1, 0] : [0, 0] // |00..0> = amplitude 1 on index 0
+        );
+
+        const initialProbabilities = Array.from({ length: dim }, (_, i) =>
+          i === 0 ? 1 : 0
+        );
+
+        const initialStep = {
+          gate: "init",
+          params: [],
+          qubits: [],
+          description: "Initial state |0…0⟩",
+          statevector: initialStatevector,
+          probabilities: initialProbabilities
+        };
+
+        // Prepend the initial step
+        const fixedData = {
+          ...data,
+          steps: [initialStep, ...data.steps],
+        };
+
+        setCircuitData(fixedData);
       } catch (err) {
         console.error("Failed to fetch circuit:", err);
       }
@@ -36,6 +64,7 @@ export default function StepByStepTab() {
 
     fetchCircuit();
   }, []);
+
 
   if (!circuitData) return <div>Loading...</div>;
 
