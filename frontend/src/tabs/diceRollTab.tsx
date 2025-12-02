@@ -1,8 +1,22 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { CircuitViewer, Distribution } from "../components";
+import { CircuitViewer, Distribution, QuantumVisual } from "../components";
 import Dice3D from "../components/Dice3D";
 import { useTranslation } from "../i18n";
+
+interface StepData {
+  gate: string;
+  params: number[];
+  qubits: number[];
+  description: string;
+  statevector: [number, number][]; // updated for real/imag format
+  probabilities: number[];
+}
+
+interface CircuitVisualResponse {
+  num_qubits: number;
+  steps: StepData[];
+}
 
 interface BuildResponse {
   n: number;
@@ -27,27 +41,28 @@ export default function DiceRollTab() {
   useEffect(() => {
     console.debug("DiceRollTab language:", lang, "title->", t("dice.title"));
   }, [lang, t]);
+
   const [n, setN] = useState<number>(6);
   const [method, setMethod] = useState<string>("rejection");
 
   const [svg, setSvg] = useState<string | null>(null);
   const [dist, setDist] = useState<Record<string, number>>({});
 
+  const [circuitData, setCircuitData] = useState<CircuitVisualResponse | null>(null);
+
   const [lastRollRaw, setLastRollRaw] = useState<number | null>(null);
 
-  const [samples, setSamples] = useState<Record<string, number>>({}); // cumulative histogram
+  const [samples, setSamples] = useState<Record<string, number>>({});
   const [rolling, setRolling] = useState(false);
   const [showResult, setShowResult] = useState(false);
 
   //
   // --- Fetch circuit whenever n or method changes ---
   //
-  // buildCircuit inlined in the effect below
-
   useEffect(() => {
     let cancelled = false;
 
-    const doBuild = async () => {
+    const fetchSvg = async () => {
       try {
         const { data } = await axios.post<BuildResponse>(
           `${import.meta.env.VITE_API_BASE}/build_circuit`,
@@ -68,7 +83,49 @@ export default function DiceRollTab() {
       }
     };
 
-    doBuild();
+    const fetchCircuitVisual = async () => {
+      try {
+        const { data } = await axios.post<CircuitVisualResponse>(
+          `${import.meta.env.VITE_API_BASE}/circuit_visual`,
+          { n, method }
+        );
+
+        if (cancelled) return;
+
+        // Add initial |000...0> state
+        const numQubits = data.num_qubits;
+        const dim = 2 ** numQubits;
+
+        const initialStatevector: [number, number][] = Array.from(
+          { length: dim },
+          (_, i) => (i === 0 ? [1, 0] : [0, 0])
+        );
+
+        const initialProbabilities = Array.from(
+          { length: dim },
+          (_, i) => (i === 0 ? 1 : 0)
+        );
+
+        const initialStep: StepData = {
+          gate: "init",
+          params: [],
+          qubits: [],
+          description: "Initial state |0…0⟩",
+          statevector: initialStatevector,
+          probabilities: initialProbabilities,
+        };
+
+        setCircuitData({
+          ...data,
+          steps: [initialStep, ...data.steps],
+        });
+      } catch (err) {
+        console.error("Failed to fetch circuitData:", err);
+      }
+    };
+
+    fetchSvg();
+    fetchCircuitVisual();
 
     return () => {
       cancelled = true;
@@ -81,20 +138,20 @@ export default function DiceRollTab() {
   const rollSingle = async () => {
     setRolling(true);
     setShowResult(false);
-  // clear any previously pending value (no-op after refactor)
 
-    // start request and animation in parallel, reveal when BOTH complete
     const req = axios.post<RollSingleResponse>(
       `${import.meta.env.VITE_API_BASE}/roll`,
       { n, method }
     );
 
-    const animation = new Promise((resolve) => setTimeout(resolve, 1500));
+    const animation = new Promise((resolve) =>
+      setTimeout(resolve, 1500)
+    );
 
     try {
       const [res] = await Promise.all([req, animation]);
       const raw = res?.data?.raw_value ?? null;
-      // set the visible last roll and update histogram once
+
       if (raw !== null) {
         setLastRollRaw(raw);
         const key = String(raw);
@@ -121,7 +178,6 @@ export default function DiceRollTab() {
         { n, method, shots: 100 }
       );
 
-      // Merge new samples into cumulative histogram
       setSamples((prev) => {
         const updated = { ...prev };
         Object.entries(data.counts_raw).forEach(([key, count]) => {
@@ -139,142 +195,166 @@ export default function DiceRollTab() {
   //
   // --------- RENDER ----------
   //
-    return (
-      <div>
-        <h2 style={{ textAlign: "center" }}>{t("dice.title")}</h2>
+  return (
+    <div>
+      <h2 style={{ textAlign: "center" }}>{t("dice.title")}</h2>
 
-        {/* --- Dice Roll Section --- */}
-        <div className="card">
+      {/* --- Dice Roll Section --- */}
+      <div className="card">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            marginBottom: "1rem",
+            gap: "1rem",
+          }}
+        >
+          <Dice3D
+            sides={n}
+            rolling={rolling}
+            label={
+              showResult && lastRollRaw !== null
+                ? `${t("dice.resultPrefix")} ${lastRollRaw}`
+                : `D${n}`
+            }
+          />
+        </div>
+
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ marginBottom: "0.5rem" }}>{t("dice.choose")}</div>
           <div
             style={{
               display: "flex",
-              alignItems: "center",
+              gap: "0.5rem",
               marginBottom: "1rem",
-              gap: "1rem",
+              flexWrap: "wrap",
             }}
           >
-            <Dice3D
-              sides={n}
-              rolling={rolling}
-              label={showResult && lastRollRaw !== null ? `${t("dice.resultPrefix")} ${lastRollRaw}` : `D${n}`}
-            />
+            {[4, 6, 8, 12, 20].map((sides) => (
+              <button
+                key={sides}
+                onClick={() => setN(sides)}
+                style={{
+                  padding: "0.5rem 1rem",
+                  border: n === sides ? "2px solid #3a4ca3" : "1px solid #ccc",
+                  background: n === sides ? "#eaf6ff" : "#fff",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: n === sides ? "bold" : "normal",
+                }}
+              >
+                {`D${sides}`}
+              </button>
+            ))}
           </div>
 
-          <div style={{ marginBottom: "1rem" }}>
-            <div style={{ marginBottom: "0.5rem" }}>{t("dice.choose")}</div>
-            <div
-              style={{
-                display: "flex",
-                gap: "0.5rem",
-                marginBottom: "1rem",
-                flexWrap: "wrap",
-              }}
-            >
-              {[4, 6, 8, 12, 20].map((sides) => (
-                <button
-                  key={sides}
-                  onClick={() => setN(sides)}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    border:
-                      n === sides ? "2px solid #3a4ca3" : "1px solid #ccc",
-                    background: n === sides ? "#eaf6ff" : "#fff",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontWeight: n === sides ? "bold" : "normal",
-                  }}
-                >
-                  {`D${sides}`}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ marginBottom: "0.5rem" }}>{t("dice.method")}</div>
-            <select
-              value={method}
-              onChange={(e) => setMethod(e.target.value)}
-              style={{ width: "100%" }}
-            >
-              <option value="rejection">{t("dice.method.rejection")}</option>
-              <option value="exact">{t("dice.method.exact")}</option>
-            </select>
-          </div>
-
-          <button
-            onClick={rollSingle}
-            style={{
-              padding: "0.6rem 1.2rem",
-              width: "100%",
-              cursor: "pointer",
-              fontSize: "1rem",
-              background: "#3a4ca3",
-              color: "#fff",
-              borderRadius: "8px",
-              border: "none",
-            }}
+          <div style={{ marginBottom: "0.5rem" }}>{t("dice.method")}</div>
+          <select
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+            style={{ width: "100%" }}
           >
-            {t("dice.rollOnce")}
-          </button>
+            <option value="rejection">{t("dice.method.rejection")}</option>
+            <option value="exact">{t("dice.method.exact")}</option>
+          </select>
         </div>
 
-        {/* --- Histogram Section --- */}
-        <div className="card">
-          <h3>{t("histogram.title")}</h3>
-
-          <Distribution
-            distribution={samples}
-            theoretical={dist}
-            highlightInvalid={true}
-            n={n}
-          />
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
-            <div style={{ fontSize: "1rem", color: "#333" }}>{t("dice.lastRoll")}</div>
-            <div style={{ fontSize: "1rem", color: showResult && lastRollRaw !== null && lastRollRaw >= n ? "#d64545" : "#333", fontWeight: 700 }}>
-              {t("dice.raw")} {showResult && lastRollRaw !== null ? lastRollRaw : "-"}
-            </div>
-          </div>
-
-          <button
-            onClick={add100Rolls}
-            style={{
-              padding: "0.6rem 1.2rem",
-              width: "100%",
-              marginTop: "1rem",
-              cursor: "pointer",
-              borderRadius: "8px",
-              border: "none",
-              background: "#3a4ca3",
-              color: "#fff",
-            }}
-          >
-            {t("dice.add100")}
-          </button>
-
-          <button
-            onClick={resetHistogram}
-            style={{
-              padding: "0.6rem 1.2rem",
-              width: "100%",
-              marginTop: "0.5rem",
-              cursor: "pointer",
-              borderRadius: "8px",
-              border: "none",
-              background: "#eaf6ff",
-              color: "#3a4ca3",
-            }}
-          >
-            {t("dice.reset")}
-          </button>
-        </div>
-
-        {/* --- Circuit Section --- */}
-        {svg && (
-          <div className="card">
-            <h3>{t("circuit.title")}</h3>
-            <CircuitViewer svg={svg} />
-          </div>
-        )}
+        <button
+          onClick={rollSingle}
+          style={{
+            padding: "0.6rem 1.2rem",
+            width: "100%",
+            cursor: "pointer",
+            fontSize: "1rem",
+            background: "#3a4ca3",
+            color: "#fff",
+            borderRadius: "8px",
+            border: "none",
+          }}
+        >
+          {t("dice.rollOnce")}
+        </button>
       </div>
+
+      {/* --- Histogram Section --- */}
+      <div className="card">
+        <h3>{t("histogram.title")}</h3>
+
+        <Distribution
+          distribution={samples}
+          theoretical={dist}
+          highlightInvalid={true}
+          n={n}
+        />
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginTop: 12,
+          }}
+        >
+          <div style={{ fontSize: "1rem", color: "#333" }}>
+            {t("dice.lastRoll")}
+          </div>
+          <div
+            style={{
+              fontSize: "1rem",
+              color:
+                showResult &&
+                lastRollRaw !== null &&
+                lastRollRaw >= n
+                  ? "#d64545"
+                  : "#333",
+              fontWeight: 700,
+            }}
+          >
+            {t("dice.raw")}{" "}
+            {showResult && lastRollRaw !== null ? lastRollRaw : "-"}
+          </div>
+        </div>
+
+        <button
+          onClick={add100Rolls}
+          style={{
+            padding: "0.6rem 1.2rem",
+            width: "100%",
+            marginTop: "1rem",
+            cursor: "pointer",
+            borderRadius: "8px",
+            border: "none",
+            background: "#3a4ca3",
+            color: "#fff",
+          }}
+        >
+          {t("dice.add100")}
+        </button>
+
+        <button
+          onClick={resetHistogram}
+          style={{
+            padding: "0.6rem 1.2rem",
+            width: "100%",
+            marginTop: "0.5rem",
+            cursor: "pointer",
+            borderRadius: "8px",
+            border: "none",
+            background: "#eaf6ff",
+            color: "#3a4ca3",
+          }}
+        >
+          {t("dice.reset")}
+        </button>
+      </div>
+
+      {/* --- Circuit Section (QuantumVisual) --- */}
+      {circuitData && (
+        <div className="card">
+          <h3>{t("circuit.title")}</h3>
+          <QuantumVisual circuitData={circuitData} mode="view-only" />
+        </div>
+      )}
+    </div>
   );
 }
