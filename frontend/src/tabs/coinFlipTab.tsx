@@ -1,8 +1,22 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Coin2D from "../components/Coin2D";
-import { CircuitViewer, Distribution } from "../components";
+import { Distribution, QuantumVisual } from "../components";
 import { useTranslation } from "../i18n";
+
+interface StepData {
+  gate: string;
+  params: number[];
+  qubits: number[];
+  description: string;
+  statevector: [number, number][];
+  probabilities: number[];
+}
+
+interface CircuitVisualResponse {
+  num_qubits: number;
+  steps: StepData[];
+}
 
 interface BuildResponse {
   n: number;
@@ -19,7 +33,7 @@ interface RollMultipleResponse {
   counts_raw: Record<string, number>;
 }
 
-const N_COIN = 2; // coin has two outcomes: 0, 1
+const N_COIN = 2;
 
 export default function CoinFlipTab() {
   const { t, lang } = useTranslation();
@@ -30,48 +44,85 @@ export default function CoinFlipTab() {
 
   const [method, setMethod] = useState<string>("rejection");
 
-  const [svg, setSvg] = useState<string | null>(null);
   const [dist, setDist] = useState<Record<string, number>>({});
+  const [circuitData, setCircuitData] = useState<CircuitVisualResponse | null>(null);
 
-  const [lastFlipRaw, setLastFlipRaw] = useState<number | null>(null); // 0 or 1
-
+  const [lastFlipRaw, setLastFlipRaw] = useState<number | null>(null);
   const [samples, setSamples] = useState<Record<string, number>>({});
   const [flipping, setFlipping] = useState(false);
   const [showResult, setShowResult] = useState(false);
 
   //
-  // --- Fetch circuit whenever method changes (n is fixed to 2) ---
+  // --- Fetch circuit whenever method changes ---
   //
   useEffect(() => {
     let cancelled = false;
 
-    const doBuild = async () => {
+    const fetchTheoretical = async () => {
       try {
         const { data } = await axios.post<BuildResponse>(
           `${import.meta.env.VITE_API_BASE}/build_circuit`,
           { n: N_COIN, method }
         );
         if (!cancelled) {
-          setSvg(data.svg);
           setDist(data.theoretical);
         }
       } catch (err) {
         console.error(err);
-        if (!cancelled) {
-          setSvg("<div>Failed to load circuit</div>");
-          setDist({});
-        }
+        if (!cancelled) setDist({});
       } finally {
         if (!cancelled) setSamples({});
       }
     };
 
-    doBuild();
+    const fetchCircuitVisual = async () => {
+      try {
+        const { data } = await axios.post<CircuitVisualResponse>(
+          `${import.meta.env.VITE_API_BASE}/circuit_visual`,
+          { n: N_COIN, method }
+        );
+
+        if (cancelled) return;
+
+        // ---- INSERT INITIAL STATE STEP ----
+        const numQubits = data.num_qubits;
+        const dim = 2 ** numQubits;
+
+        const initialStatevector: [number, number][] = Array.from(
+          { length: dim },
+          (_, i) => (i === 0 ? [1, 0] : [0, 0])
+        );
+
+        const initialProbabilities = Array.from(
+          { length: dim },
+          (_, i) => (i === 0 ? 1 : 0)
+        );
+
+        const initialStep: StepData = {
+          gate: "init",
+          params: [],
+          qubits: [],
+          description: t("step.initialState"),
+          statevector: initialStatevector,
+          probabilities: initialProbabilities,
+        };
+
+        setCircuitData({
+          ...data,
+          steps: [initialStep, ...data.steps],
+        });
+      } catch (err) {
+        console.error("Failed to fetch circuitData:", err);
+      }
+    };
+
+    fetchTheoretical();
+    fetchCircuitVisual();
 
     return () => {
       cancelled = true;
     };
-  }, [method]);
+  }, [method, t]);
 
   //
   // --- Single flip ---
@@ -90,6 +141,7 @@ export default function CoinFlipTab() {
     try {
       const [res] = await Promise.all([req, animation]);
       const raw = res?.data?.raw_value ?? null;
+
       if (raw !== null) {
         setLastFlipRaw(raw);
         const key = String(raw);
@@ -155,13 +207,24 @@ export default function CoinFlipTab() {
         </div>
 
         <div style={{ margin: "0 auto 1rem", width: 220 }}>
-          {/* Show result above method when available */}
           {showResult && lastFlipRaw !== null && (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontSize: "0.95rem", color: "#333" }}>{t("coin.last")}</div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 700 }}>{lastFlipLabel}</div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <div style={{ fontSize: "0.95rem", color: "#333" }}>
+                {t("coin.last")}
+              </div>
+              <div style={{ fontSize: "1.05rem", fontWeight: 700 }}>
+                {lastFlipLabel}
+              </div>
             </div>
           )}
+
           <div style={{ marginBottom: "0.5rem" }}>{t("dice.method")}</div>
           <select
             value={method}
@@ -195,7 +258,6 @@ export default function CoinFlipTab() {
       <div className="card">
         <h3>{t("histogram.title")}</h3>
 
-        {/* Here the outcomes are "0" (Heads) and "1" (Tails) */}
         <Distribution
           distribution={samples}
           theoretical={dist}
@@ -211,7 +273,9 @@ export default function CoinFlipTab() {
             marginTop: 12,
           }}
         >
-          <div style={{ fontSize: "1rem", color: "#333" }}>Last flip</div>
+          <div style={{ fontSize: "1rem", color: "#333" }}>
+            {t("coin.last")}
+          </div>
           <div style={{ fontSize: "1rem", fontWeight: 700 }}>
             {lastFlipLabel}{" "}
             {showResult && lastFlipRaw !== null ? `(${lastFlipRaw})` : ""}
@@ -251,11 +315,11 @@ export default function CoinFlipTab() {
         </button>
       </div>
 
-      {/* --- Circuit Section --- */}
-      {svg && (
+      {/* --- Circuit Section (QuantumVisual) --- */}
+      {circuitData && (
         <div className="card">
           <h3>{t("circuit.title")}</h3>
-          <CircuitViewer svg={svg} />
+          <QuantumVisual circuitData={circuitData} mode="view-only" />
         </div>
       )}
     </div>
