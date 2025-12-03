@@ -48,7 +48,7 @@ export default function StepByStepTab() {
           gate: "init",
           params: [],
           qubits: [],
-          description: `Initial state |0…0⟩`,
+          description: t("step.initialState"),
           statevector: initialStatevector,
           probabilities: initialProbabilities,
         };
@@ -60,20 +60,22 @@ export default function StepByStepTab() {
     };
 
     fetchCircuit();
-  }, [nSides]);
+  }, [nSides, t]);
 
-  if (!circuitData) return <div>Loading...</div>;
+  if (!circuitData) return <div>{t("step.loading")}</div>;
 
   return (
     <div style={{ padding: 20 }}>
-      <h2 style={{ marginBottom: 15 }}>Step-by-Step Viewer</h2>
+      <h2 style={{ marginBottom: 15 }}>{t("step.title")}</h2>
 
       {/* Dice selector */}
-      <div style={{ 
-        marginBottom: 20,
-        marginTop: 20,
-      }}>
-        <span>Select dice: </span>
+      <div
+        style={{
+          marginBottom: 20,
+          marginTop: 20,
+        }}
+      >
+        <span>{t("step.selectDice")} </span>
         {[2, 3, 4, 5, 6, 7, 8].map((sides) => (
           <button
             key={sides}
@@ -88,7 +90,7 @@ export default function StepByStepTab() {
               cursor: "pointer",
             }}
           >
-            {`${sides}-sided`}
+            {`${sides}-${t("step.sided")}`}
           </button>
         ))}
       </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "../i18n";
 
 interface StepData {
   gate: string;
@@ -36,6 +37,8 @@ export default function QuantumVisual({
   gateWidth = 60,
   spacing = 20,
 }: QuantumVisualProps) {
+  const { t } = useTranslation();
+  
   const [currentStep, setCurrentStep] = useState<number>(
     mode === "step-by-step" ? 0 : circuitData.steps.length - 1
   );
@@ -225,10 +228,10 @@ export default function QuantumVisual({
               cursor: "pointer",
             }}
           >
-            Previous
+            {t("step.prevButton")}
           </button>
           <span style={{ fontSize: 16, minWidth: "120px", textAlign: "center" }}>
-            Step {currentStep}/{circuitData.steps.length - 1}
+            {t("step.step")} {currentStep}/{circuitData.steps.length - 1}
           </span>
           <button
             onClick={nextStep}
@@ -241,7 +244,7 @@ export default function QuantumVisual({
               cursor: "pointer",
             }}
           >
-            Next
+            {t("step.nextButton")}
           </button>
         </div>
       )}
@@ -259,9 +262,9 @@ export default function QuantumVisual({
           >
             <thead>
               <tr>
-                <th style={{ borderBottom: "1px solid #ccc", padding: "6px" }}>State</th>
-                <th style={{ borderBottom: "1px solid #ccc", padding: "6px" }}>Amplitude</th>
-                <th style={{ borderBottom: "1px solid #ccc", padding: "6px" }}>Probability</th>
+                <th style={{ borderBottom: "1px solid #ccc", padding: "6px" }}>{t("step.state")}</th>
+                <th style={{ borderBottom: "1px solid #ccc", padding: "6px" }}>{t("step.amplitude")}</th>
+                <th style={{ borderBottom: "1px solid #ccc", padding: "6px" }}>{t("step.probability")}</th>
               </tr>
             </thead>
             <tbody>
